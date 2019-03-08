@@ -1,5 +1,5 @@
 %%%===================================================================
-%%% Copyright (c) 2013-2018 EMQ Inc. All rights reserved.
+%%% Copyright (c) 2013-2019 EMQ Inc. All rights reserved.
 %%%
 %%% Licensed under the Apache License, Version 2.0 (the "License");
 %%% you may not use this file except in compliance with the License.
@@ -18,7 +18,14 @@
 
 -include_lib("common_test/include/ct.hrl").
 
--export([set_config/1,run_setup_steps/1, run_teardown_steps/0, reload/2, ensure_broker_started/0, ensure_broker_stopped/0]).
+-export([set_config/1,
+         run_setup_steps/1,
+         run_teardown_steps/0, 
+         reload/2,
+         start_apps/1,
+         stop_apps/1,
+         ensure_broker_started/0, 
+         ensure_broker_stopped/0]).
 
 ensure_broker_started() ->
     {ok, _} = emqx_ct_broker:start_link(),  
@@ -31,24 +38,35 @@ set_config(Config) when is_list(Config) ->
     set_config(Config, []).
 
 set_config([{App, SchemaPath, ConfPath} | ConfigInfo], Acc) ->
-    set_config(ConfigInfo, [{App, local_path(SchemaPath), local_path(ConfPath)} | Acc]);
+    set_config(ConfigInfo, [{App, local_path(App, SchemaPath), local_path(App, ConfPath)} | Acc]);
 set_config([], Acc) ->
     Acc.
-local_path(RelativePath) ->
-    filename:join([get_base_dir(), RelativePath]).
+local_path(App,RelativePath) ->
+    filename:join([get_base_dir(App), RelativePath]).
 
-get_base_dir() ->
-    {file, Here} = code:is_loaded(?MODULE),
+get_base_dir(App) ->
+    {file, Here} = code:is_loaded(App),
     filename:dirname(filename:dirname(Here)).
 
 run_setup_steps(Config)when is_list(Config) ->
-    [start_apps(App, {SchemaFile, ConfigFile}) || {App, SchemaFile, ConfigFile} <- Config].
+    [start_app(App, {SchemaFile, ConfigFile}) || {App, SchemaFile, ConfigFile} <- Config].
 
 run_teardown_steps() ->
     [application:stop(App) || {_, App} <- erlang:erase()],
     ekka_mnesia:stop().
 
-start_apps(App, {SchemaFile, ConfigFile}) ->
+start_apps([]) ->
+    ok;
+start_apps([App | LeftApps]) ->
+    SchemaFile = local_path(App, "priv/" ++ atom_to_list(App) ++ ".schema"),
+    ConfigFile = local_path(App, "etc/" ++ atom_to_list(App) ++ ".conf"),
+    start_app(App, {SchemaFile, ConfigFile}),
+    start_apps(LeftApps).
+
+stop_apps(Apps) ->
+    [application:stop(App) || App <- Apps].
+
+start_app(App, {SchemaFile, ConfigFile}) ->
     erlang:erase(),
     erlang:put(App, App),
     read_schema_configs(App, {SchemaFile, ConfigFile}),
