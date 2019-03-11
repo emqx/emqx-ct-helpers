@@ -20,7 +20,6 @@
 
 -export([set_config/1,
          run_setup_steps/1,
-         run_teardown_steps/0, 
          reload/2,
          start_apps/1,
          stop_apps/1,
@@ -51,24 +50,19 @@ get_base_dir(App) ->
 run_setup_steps(Config)when is_list(Config) ->
     [start_app(App, {SchemaFile, ConfigFile}) || {App, SchemaFile, ConfigFile} <- Config].
 
-run_teardown_steps() ->
-    [application:stop(App) || {_, App} <- erlang:erase()],
-    ekka_mnesia:stop().
-
 start_apps([]) ->
     ok;
 start_apps([App | LeftApps]) ->
-    SchemaFile = local_path(App, "priv/" ++ atom_to_list(App) ++ ".schema"),
-    ConfigFile = local_path(App, "etc/" ++ atom_to_list(App) ++ ".conf"),
+    SchemaFile = local_path(App, filename:join(["priv", atom_to_list(App) ++ ".schema"])),
+    ConfigFile = local_path(App, filename:join(["etc", atom_to_list(App) ++ ".conf"])),
     start_app(App, {SchemaFile, ConfigFile}),
     start_apps(LeftApps).
 
 stop_apps(Apps) ->
-    [application:stop(App) || App <- Apps].
+    [application:stop(App) || App <- Apps],
+    ekka_mnesia:stop().
 
 start_app(App, {SchemaFile, ConfigFile}) ->
-    erlang:erase(),
-    erlang:put(App, App),
     read_schema_configs(App, {SchemaFile, ConfigFile}),
     set_special_configs(App),
     application:ensure_all_started(App).
@@ -82,20 +76,19 @@ read_schema_configs(App, {SchemaFile, ConfigFile}) ->
     [application:set_env(App, Par, Value) || {Par, Value} <- Vals].
 
 set_special_configs(emqx) ->
-    application:set_env(emqx, allow_anonymous, false),
-    application:set_env(emqx, enable_acl_cache, false);
+    PluginsEtcDir = local_path(emqx_reloader, "etc/"),
+    application:set_env(emqx, plugins_etc_dir, PluginsEtcDir);
 set_special_configs(_App) ->
     ok.
 
 reload(APP, {Par, Vals}) when is_atom(APP), is_list(Vals) ->
     application:stop(APP),
     {ok, TupleVals} = application:get_env(APP, Par),
-    NewVals =
-    lists:filtermap(fun({K, V}) ->
-        case lists:keymember(K, 1, Vals) of
-        false ->{true, {K, V}};
-        _ -> false
-        end
-    end, TupleVals),
+    NewVals = lists:filtermap(fun({K, V}) ->
+                                  case lists:keymember(K, 1, Vals) of
+                                     false ->{true, {K, V}};
+                                         _ -> false
+                                  end
+                              end, TupleVals),
     application:set_env(APP, Par, lists:append(NewVals, Vals)),
     application:start(APP).
