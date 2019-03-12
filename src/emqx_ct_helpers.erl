@@ -37,11 +37,19 @@ set_config(Config) when is_list(Config) ->
     set_config(Config, []).
 
 set_config([{App, SchemaPath, ConfPath} | ConfigInfo], Acc) ->
-    set_config(ConfigInfo, [{App, local_path(App, SchemaPath), local_path(App, ConfPath)} | Acc]);
+    set_config(ConfigInfo, [{App, path(App, SchemaPath), path(App, ConfPath)} | Acc]);
 set_config([], Acc) ->
     Acc.
-local_path(App,RelativePath) ->
-    filename:join([get_base_dir(App), RelativePath]).
+
+path(App, RelativePath) ->
+    BaseDir = get_base_dir(?MODULE),
+    PluginDepsPath = filename:dirname(BaseDir),
+    PluginPath = filename:dirname(PluginDepsPath),
+    CurrentPluginPathNmae = filename:basename(PluginPath),
+    case l2b(CurrentPluginPathNmae) =:= App of
+        true -> filename:join([PluginPath, RelativePath]);
+        false -> filename:join([PluginDepsPath, App, RelativePath])
+    end.
 
 get_base_dir(App) ->
     {file, Here} = code:is_loaded(App),
@@ -53,8 +61,8 @@ run_setup_steps(Config)when is_list(Config) ->
 start_apps([]) ->
     ok;
 start_apps([App | LeftApps]) ->
-    SchemaFile = local_path(App, filename:join(["priv", atom_to_list(App) ++ ".schema"])),
-    ConfigFile = local_path(App, filename:join(["etc", atom_to_list(App) ++ ".conf"])),
+    SchemaFile = path(App, filename:join(["priv", atom_to_list(App) ++ ".schema"])),
+    ConfigFile = path(App, filename:join(["etc", atom_to_list(App) ++ ".conf"])),
     start_app(App, {SchemaFile, ConfigFile}),
     start_apps(LeftApps).
 
@@ -76,7 +84,7 @@ read_schema_configs(App, {SchemaFile, ConfigFile}) ->
     [application:set_env(App, Par, Value) || {Par, Value} <- Vals].
 
 set_special_configs(emqx) ->
-    PluginsEtcDir = local_path(emqx_reloader, "etc/"),
+    PluginsEtcDir = path(emqx_reloader, "etc/"),
     application:set_env(emqx, plugins_etc_dir, PluginsEtcDir);
 set_special_configs(_App) ->
     ok.
@@ -92,3 +100,8 @@ reload(APP, {Par, Vals}) when is_atom(APP), is_list(Vals) ->
                               end, TupleVals),
     application:set_env(APP, Par, lists:append(NewVals, Vals)),
     application:start(APP).
+
+l2b(L) when is_list(L) ->
+    list_to_atom(L);
+l2b(L) ->
+    L.
