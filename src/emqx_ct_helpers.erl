@@ -42,14 +42,16 @@ set_config([], Acc) ->
     Acc.
 
 path(App, RelativePath) ->
-    BaseDir = get_base_dir(?MODULE),
-    PluginDepsPath = filename:dirname(BaseDir),
+    PluginDepsPath = get_plugindep_dir(),
     PluginPath = filename:dirname(PluginDepsPath),
     CurrentPluginPathNmae = filename:basename(PluginPath),
     case l2b(CurrentPluginPathNmae) =:= App of
         true -> filename:join([PluginPath, RelativePath]);
         false -> filename:join([PluginDepsPath, App, RelativePath])
     end.
+
+get_plugindep_dir() ->
+    filename:dirname(get_base_dir(?MODULE)).
 
 get_base_dir(App) ->
     {file, Here} = code:is_loaded(App),
@@ -67,8 +69,7 @@ start_apps([App | LeftApps]) ->
     start_apps(LeftApps).
 
 stop_apps(Apps) ->
-    [application:stop(App) || App <- Apps],
-    ekka_mnesia:stop().
+    [application:stop(App) || App <- Apps].
 
 start_app(App, {SchemaFile, ConfigFile}) ->
     read_schema_configs(App, {SchemaFile, ConfigFile}),
@@ -84,8 +85,12 @@ read_schema_configs(App, {SchemaFile, ConfigFile}) ->
     [application:set_env(App, Par, Value) || {Par, Value} <- Vals].
 
 set_special_configs(emqx) ->
-    PluginsEtcDir = path(emqx_reloader, "etc/"),
-    application:set_env(emqx, plugins_etc_dir, PluginsEtcDir);
+    {ok, AppList} = file:list_dir(get_plugindep_dir()),
+    case lists:member("emqx_reloader", AppList) of
+        true ->  PluginsEtcDir = path(emqx_reloader, "etc/"),
+                 application:set_env(emqx, plugins_etc_dir, PluginsEtcDir);
+        false -> ok
+    end;
 set_special_configs(_App) ->
     ok.
 
