@@ -53,11 +53,12 @@ get_base_dir(App) ->
 run_setup_steps(Config, Opts)when is_list(Config) ->
     [start_app(App, {SchemaFile, ConfigFile}, Opts) || {App, SchemaFile, ConfigFile} <- Config].
 
-start_apps([]) ->
-    ok;
+
 start_apps(Apps) ->
     start_apps(Apps, []).
 
+start_apps([], _Opts) ->
+    ok;
 start_apps([App | LeftApps], Opts) ->
     SchemaFile = path(App, filename:join(["priv", atom_to_list(App) ++ ".schema"])),
     ConfigFile = path(App, filename:join(["etc", atom_to_list(App) ++ ".conf"])),
