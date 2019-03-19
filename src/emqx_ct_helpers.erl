@@ -94,8 +94,8 @@ reload(APP, {Par, Vals}) when is_atom(APP), is_list(Vals) ->
     {ok, TupleVals} = application:get_env(APP, Par),
     NewVals = lists:filtermap(fun({K, V}) ->
                                   case lists:keymember(K, 1, Vals) of
-                                     false ->{true, {K, V}};
-                                         _ -> false
+                                      false -> {true, {K, V}};
+                                      _ -> false
                                   end
                               end, TupleVals),
     application:set_env(APP, Par, lists:append(NewVals, Vals)),
