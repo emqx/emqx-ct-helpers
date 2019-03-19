@@ -19,19 +19,12 @@
 -include_lib("common_test/include/ct.hrl").
 
 -export([set_config/1,
-         run_setup_steps/1,
+         run_setup_steps/2,
          reload/2,
          start_apps/1,
-         stop_apps/1,
-         ensure_broker_started/0, 
-         ensure_broker_stopped/0]).
-
-ensure_broker_started() ->
-    {ok, _} = emqx_ct_broker:start_link(),  
-    ok.
-
-ensure_broker_stopped() ->
-    emqx_ct_broker:stop().
+         start_apps/2,
+         stop_apps/1
+        ]).
 
 set_config(Config) when is_list(Config) ->
     set_config(Config, []).
@@ -42,7 +35,7 @@ set_config([], Acc) ->
     Acc.
 
 path(App, RelativePath) ->
-    PluginDepsPath = get_plugindep_dir(),
+    PluginDepsPath = plugin_dep_dir(),
     PluginPath = filename:dirname(PluginDepsPath),
     CurrentPluginPathNmae = filename:basename(PluginPath),
     case l2b(CurrentPluginPathNmae) =:= App of
@@ -50,30 +43,33 @@ path(App, RelativePath) ->
         false -> filename:join([PluginDepsPath, App, RelativePath])
     end.
 
-get_plugindep_dir() ->
+plugin_dep_dir() ->
     filename:dirname(get_base_dir(?MODULE)).
 
 get_base_dir(App) ->
     {file, Here} = code:is_loaded(App),
     filename:dirname(filename:dirname(Here)).
 
-run_setup_steps(Config)when is_list(Config) ->
-    [start_app(App, {SchemaFile, ConfigFile}) || {App, SchemaFile, ConfigFile} <- Config].
+run_setup_steps(Config, Opts)when is_list(Config) ->
+    [start_app(App, {SchemaFile, ConfigFile}, Opts) || {App, SchemaFile, ConfigFile} <- Config].
 
 start_apps([]) ->
     ok;
-start_apps([App | LeftApps]) ->
+start_apps(Apps) ->
+    start_apps(Apps, []).
+
+start_apps([App | LeftApps], Opts) ->
     SchemaFile = path(App, filename:join(["priv", atom_to_list(App) ++ ".schema"])),
     ConfigFile = path(App, filename:join(["etc", atom_to_list(App) ++ ".conf"])),
-    start_app(App, {SchemaFile, ConfigFile}),
-    start_apps(LeftApps).
+    start_app(App, {SchemaFile, ConfigFile}, Opts),
+    start_apps(LeftApps, Opts).
 
 stop_apps(Apps) ->
     [application:stop(App) || App <- Apps].
 
-start_app(App, {SchemaFile, ConfigFile}) ->
+start_app(App, {SchemaFile, ConfigFile}, Opts) ->
     read_schema_configs(App, {SchemaFile, ConfigFile}),
-    set_special_configs(App),
+    set_special_configs(App, Opts),
     application:ensure_all_started(App).
 
 read_schema_configs(App, {SchemaFile, ConfigFile}) ->
@@ -84,14 +80,13 @@ read_schema_configs(App, {SchemaFile, ConfigFile}) ->
     Vals = proplists:get_value(App, NewConfig, []),
     [application:set_env(App, Par, Value) || {Par, Value} <- Vals].
 
-set_special_configs(emqx) ->
-    {ok, AppList} = file:list_dir(get_plugindep_dir()),
-    case lists:member("emqx_reloader", AppList) of
-        true ->  PluginsEtcDir = path(emqx_reloader, "etc/"),
-                 application:set_env(emqx, plugins_etc_dir, PluginsEtcDir);
-        false -> ok
+set_special_configs(emqx, Opts) when is_list(Opts) ->
+    case Opts of
+        [] -> ok;
+        Opts -> PluginsEtcDir = path(Opts, "etc/"),
+                application:set_env(emqx, plugins_etc_dir, PluginsEtcDir)
     end;
-set_special_configs(_App) ->
+set_special_configs(_App, _Opts) ->
     ok.
 
 reload(APP, {Par, Vals}) when is_atom(APP), is_list(Vals) ->
