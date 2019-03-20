@@ -30,9 +30,12 @@ set_config(Config) when is_list(Config) ->
     set_config(Config, []).
 
 set_config([{App, SchemaPath, ConfPath} | ConfigInfo], Acc) ->
-    set_config(ConfigInfo, [{App, path(App, SchemaPath), path(App, ConfPath)} | Acc]);
+    set_config(ConfigInfo, [{App, path(SchemaPath), path(ConfPath)} | Acc]);
 set_config([], Acc) ->
     Acc.
+
+path(RelativePath) ->
+    path(undefined, RelativePath).
 
 path(App, RelativePath) ->
     PluginDepsPath = plugin_dep_dir(),
@@ -41,7 +44,11 @@ path(App, RelativePath) ->
     case l2b(CurrentPluginPathNmae) =:= App of
         true -> filename:join([PluginPath, RelativePath]);
         false -> filename:join([PluginDepsPath, App, RelativePath])
-    end.
+    end;
+path(undefined, RelativePath) ->
+    PluginDepsPath = plugin_dep_dir(),
+    PluginPath = filename:dirname(PluginDepsPath),
+    filename:join([PluginPath, RelativePath]).
 
 plugin_dep_dir() ->
     filename:dirname(get_base_dir(?MODULE)).
@@ -52,7 +59,6 @@ get_base_dir(App) ->
 
 run_setup_steps(Config, Opts)when is_list(Config) ->
     [start_app(App, {SchemaFile, ConfigFile}, Opts) || {App, SchemaFile, ConfigFile} <- Config].
-
 
 start_apps(Apps) ->
     start_apps(Apps, []).
@@ -66,7 +72,7 @@ start_apps([App | LeftApps], Opts) ->
     start_apps(LeftApps, Opts).
 
 stop_apps(Apps) ->
-    [application:stop(App) || App <- Apps].
+    [application:stop(App) || App <- lists:reverse(Apps)].
 
 start_app(App, {SchemaFile, ConfigFile}, Opts) ->
     read_schema_configs(App, {SchemaFile, ConfigFile}),
@@ -94,8 +100,8 @@ reload(APP, {Par, Vals}) when is_atom(APP), is_list(Vals) ->
     {ok, TupleVals} = application:get_env(APP, Par),
     NewVals = lists:filtermap(fun({K, V}) ->
                                   case lists:keymember(K, 1, Vals) of
-                                      false -> {true, {K, V}};
-                                      _ -> false
+                                        false ->{true, {K, V}};
+                                         _ -> false
                                   end
                               end, TupleVals),
     application:set_env(APP, Par, lists:append(NewVals, Vals)),
