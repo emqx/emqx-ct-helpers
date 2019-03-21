@@ -36,6 +36,7 @@ set_config([], Acc) ->
 
 path(RelativePath) ->
     path(undefined, RelativePath).
+
 path(undefined, RelativePath) ->
     PluginDepsPath = plugin_dep_dir(),
     PluginPath = filename:dirname(PluginDepsPath),
@@ -71,7 +72,7 @@ start_apps([App | LeftApps], Opts) ->
     start_apps(LeftApps, Opts).
 
 stop_apps(Apps) ->
-    [application:stop(App) || App <- lists:reverse(Apps)].
+    [application:stop(App) || App <- Apps].
 
 start_app(App, {SchemaFile, ConfigFile}, Opts) ->
     read_schema_configs(App, {SchemaFile, ConfigFile}),
@@ -99,8 +100,8 @@ reload(APP, {Par, Vals}) when is_atom(APP), is_list(Vals) ->
     {ok, TupleVals} = application:get_env(APP, Par),
     NewVals = lists:filtermap(fun({K, V}) ->
                                   case lists:keymember(K, 1, Vals) of
-                                        false ->{true, {K, V}};
-                                         _ -> false
+                                      false -> {true, {K, V}};
+                                      _ -> false
                                   end
                               end, TupleVals),
     application:set_env(APP, Par, lists:append(NewVals, Vals)),
