@@ -36,7 +36,10 @@ set_config([], Acc) ->
 
 path(RelativePath) ->
     path(undefined, RelativePath).
-
+path(undefined, RelativePath) ->
+    PluginDepsPath = plugin_dep_dir(),
+    PluginPath = filename:dirname(PluginDepsPath),
+    filename:join([PluginPath, RelativePath]);
 path(App, RelativePath) ->
     PluginDepsPath = plugin_dep_dir(),
     PluginPath = filename:dirname(PluginDepsPath),
@@ -44,11 +47,7 @@ path(App, RelativePath) ->
     case l2b(CurrentPluginPathNmae) =:= App of
         true -> filename:join([PluginPath, RelativePath]);
         false -> filename:join([PluginDepsPath, App, RelativePath])
-    end;
-path(undefined, RelativePath) ->
-    PluginDepsPath = plugin_dep_dir(),
-    PluginPath = filename:dirname(PluginDepsPath),
-    filename:join([PluginPath, RelativePath]).
+    end.
 
 plugin_dep_dir() ->
     filename:dirname(get_base_dir(?MODULE)).
