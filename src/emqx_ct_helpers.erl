@@ -90,7 +90,7 @@ read_schema_configs(App, {SchemaFile, ConfigFile}) ->
 set_special_configs(emqx, Opts) when is_list(Opts) ->
     case Opts of
         [] -> ok;
-        Opts -> [application:set_env(emqx, plugins_etc_dir, path(App, Dir)) || {App, Dir} <- Opts]
+        Opts -> [application:set_env(emqx, Par, path(App, Dir)) || {Par, App, Dir} <- Opts]
     end;
 set_special_configs(_App, _Opts) ->
     ok.
