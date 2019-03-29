@@ -18,12 +18,12 @@
 
 -include_lib("common_test/include/ct.hrl").
 
--export([set_config/1,
-         run_setup_steps/2,
-         reload/2,
-         start_apps/1,
-         start_apps/2,
-         stop_apps/1
+-export([ set_config/1
+         , run_setup_steps/2
+         , reload/2
+         , start_apps/1
+         , start_apps/2
+         , stop_apps/1
         ]).
 
 set_config(Config) when is_list(Config) ->
