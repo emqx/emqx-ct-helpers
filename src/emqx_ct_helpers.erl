@@ -29,10 +29,10 @@
 set_config(Config) when is_list(Config) ->
     set_config(Config, []).
 
-set_config([{App, SchemaPath, ConfPath} | ConfigInfo], Acc) ->
-    set_config(ConfigInfo, [{App, path(SchemaPath), path(ConfPath)} | Acc]);
 set_config([], Acc) ->
-    Acc.
+    Acc;
+set_config([{App, SchemaPath, ConfPath} | ConfigInfo], Acc) ->
+    set_config(ConfigInfo, [{App, path(SchemaPath), path(ConfPath)} | Acc]).
 
 path(RelativePath) ->
     path(undefined, RelativePath).
