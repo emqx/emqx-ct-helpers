@@ -33,7 +33,10 @@ request_api(Method, Url, Auth) ->
 request_api(Method, Url, QueryParams, Auth) ->
     request_api(Method, Url, QueryParams, Auth, []).
 
-request_api(Method, Url, QueryParams, Auth, Body) ->
+request_api(Method, Url, QueryParams, Auth, Body)->
+    request_api(Method, Url, QueryParams, Auth, Body, []).
+
+request_api(Method, Url, QueryParams, Auth, Body, HttpOtps) ->
     NewUrl = case QueryParams of
                  [] ->
                      Url;
@@ -46,14 +49,14 @@ request_api(Method, Url, QueryParams, Auth, Body) ->
                   _ ->
                       {NewUrl, [Auth], "application/json", emqx_json:encode(Body)}
               end,
-    do_request_api(Method, Request).
+    do_request_api(Method, Request, HttpOtps).
 
-do_request_api(Method, Request) ->
+do_request_api(Method, Request, HttpOtps) ->
     ct:pal("Method: ~p, Request: ~p", [Method, Request]),
-    case httpc:request(Method, Request, [], []) of
+    case httpc:request(Method, Request, HttpOtps, [{body_format, binary}]) of
         {error, socket_closed_remotely} ->
                 {error, socket_closed_remotely};
-        {ok, {{"HTTP/1.1", Code, _}, _, Return} } 
+        {ok, {{"HTTP/1.1", Code, _}, _Headers, Return} } 
             when Code =:= 200 orelse Code =:= 201 ->
             {ok, Return};
         {ok, {Reason, _, _}} ->
@@ -61,7 +64,7 @@ do_request_api(Method, Request) ->
     end.
 
 get_http_data(ResponseBody) ->
-    proplists:get_value(<<"data">>, emqx_json:decode(list_to_binary(ResponseBody))).
+    proplists:get_value(<<"data">>, emqx_json:decode(ResponseBody)).
 
 auth_header(User, Pass) ->
     Encoded = base64:encode_to_string(lists:append([User,":",Pass])),
