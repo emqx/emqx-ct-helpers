@@ -57,7 +57,7 @@ get_base_dir(App) ->
     {file, Here} = code:is_loaded(App),
     filename:dirname(filename:dirname(Here)).
 
-run_setup_steps(Config, Opts)when is_list(Config) ->
+run_setup_steps(Config, Opts) when is_list(Config) ->
     [start_app(App, {SchemaFile, ConfigFile}, Opts) || {App, SchemaFile, ConfigFile} <- Config].
 
 start_apps(Apps) ->
