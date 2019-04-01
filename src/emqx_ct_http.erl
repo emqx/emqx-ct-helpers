@@ -36,7 +36,7 @@ request_api(Method, Url, QueryParams, Auth) ->
 request_api(Method, Url, QueryParams, Auth, Body)->
     request_api(Method, Url, QueryParams, Auth, Body, []).
 
-request_api(Method, Url, QueryParams, Auth, Body, HttpOtps) ->
+request_api(Method, Url, QueryParams, Auth, Body, HttpOpts) ->
     NewUrl = case QueryParams of
                  [] ->
                      Url;
@@ -49,11 +49,11 @@ request_api(Method, Url, QueryParams, Auth, Body, HttpOtps) ->
                   _ ->
                       {NewUrl, [Auth], "application/json", emqx_json:encode(Body)}
               end,
-    do_request_api(Method, Request, HttpOtps).
+    do_request_api(Method, Request, HttpOpts).
 
-do_request_api(Method, Request, HttpOtps) ->
+do_request_api(Method, Request, HttpOpts) ->
     ct:pal("Method: ~p, Request: ~p", [Method, Request]),
-    case httpc:request(Method, Request, HttpOtps, [{body_format, binary}]) of
+    case httpc:request(Method, Request, HttpOpts, [{body_format, binary}]) of
         {error, socket_closed_remotely} ->
                 {error, socket_closed_remotely};
         {ok, {{"HTTP/1.1", Code, _}, _Headers, Return} } 
