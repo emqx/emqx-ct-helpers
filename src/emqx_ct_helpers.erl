@@ -30,7 +30,8 @@
         ]).
 
 -export([ ensure_mnesia_stopped/0
-        , wait_for/4]).
+        , wait_for/4
+        , change_emqx_opts/1]).
 
 %%------------------------------------------------------------------------------
 %% APIs
@@ -97,6 +98,40 @@ ensure_mnesia_stopped() ->
 wait_for(Fn, Ln, F, Timeout) ->
     {Pid, Mref} = erlang:spawn_monitor(fun() -> wait_loop(F, catch_call(F)) end),
     wait_for_down(Fn, Ln, Timeout, Pid, Mref, false).
+
+change_emqx_opts(SslType) ->
+    {ok, Listeners} = application:get_env(emqx, listeners),
+    NewListeners =
+        lists:foldl(fun({Protocol, Port, Opts} = Listener, Acc) ->
+                            case Protocol of
+                                ssl ->
+                                    SslOpts = proplists:get_value(ssl_options, Opts),
+                                    Keyfile = deps_path(emqx, filename:join(["etc", "certs", "key.pem"])),
+                                    Certfile = deps_path(emqx, filename:join(["etc", "certs", "cert.pem"])),
+                                    TupleList1 = lists:keyreplace(keyfile, 1, SslOpts, {keyfile, Keyfile}),
+                                    TupleList2 = lists:keyreplace(certfile, 1, TupleList1, {certfile, Certfile}),
+                                    TupleList3 =
+                                        case SslType of
+                                            ssl_twoway->
+                                                CAfile = deps_path(emqx, filename:join(["etc", "certs", "cacert.pem"])),
+                                                MQTT_SSL_TWOWAY = [{cacertfile, filename:join(["etc", "certs", "cacert.pem"])},
+                                                                   {verify, verify_peer},
+                                                                   {fail_if_no_peer_cert, true}],
+                                                MutSslList = lists:keyreplace(cacertfile, 1, MQTT_SSL_TWOWAY, {cacertfile, CAfile}),
+                                                lists:merge(TupleList2, MutSslList);
+                                            _ ->
+                                                lists:filter(fun ({cacertfile, _}) -> false;
+                                                                 ({verify, _}) -> false;
+                                                                 ({fail_if_no_peer_cert, _}) -> false;
+                                                                 (_) -> true
+                                                             end, TupleList2)
+                                        end,
+                                    [{Protocol, Port, lists:keyreplace(ssl_options, 1, Opts, {ssl_options, TupleList3})} | Acc];
+                                _ ->
+                                    [Listener | Acc]
+                            end
+                    end, [], Listeners),
+    application:set_env(emqx, listeners, NewListeners).
 
 wait_for_down(Fn, Ln, Timeout, Pid, Mref, Kill) ->
     receive
