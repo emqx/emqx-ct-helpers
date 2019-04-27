@@ -93,28 +93,25 @@ start_app(App, Handler) ->
     start_app(App,
               deps_path(App, filename:join(["priv", atom_to_list(App) ++ ".schema"])),
               deps_path(App, filename:join(["etc", atom_to_list(App) ++ ".conf"])),
-              deps_path(App, "vars"),
               Handler).
 
-start_app(App, SchemaFile, ConfigFile, VarsFile, SpecAppConfig) ->
-    RenderedConfigFile = maybe_render_config_file(ConfigFile, VarsFile),
+mustache_vars(App) ->
+    [{platform_data_dir, deps_path(App, "data")},
+     {platform_etc_dir,  deps_path(App, "etc")},
+     {platform_log_dir,  deps_path(App, "log")},
+     {platform_plugins_dir,  deps_path(App, "plugins")}
+    ].
+
+start_app(App, SchemaFile, ConfigFile, SpecAppConfig) ->
+    RenderedConfigFile = render_config_file(App, ConfigFile),
     read_schema_configs(App, SchemaFile, RenderedConfigFile),
     SpecAppConfig(App),
     application:ensure_all_started(App).
 
-maybe_render_config_file(ConfigFile, VarsFile) ->
-    case filelib:is_regular(VarsFile) of
-        true ->
-            ct:pal("Rendering ~p with: ~p", [ConfigFile, VarsFile]),
-            render_config_file(ConfigFile, VarsFile);
-        false ->
-            ConfigFile
-    end.
-
-render_config_file(ConfigFile, VarsFile) ->
+render_config_file(App, ConfigFile) ->
     {ok, Temp} = file:read_file(ConfigFile),
-    {ok, Vars0} = file:consult(VarsFile),
-    Vars = [{atom_to_list(N), list_to_binary(V)} || {N, V} <- Vars0],
+    Vars0 = mustache_vars(App),
+    Vars = [{atom_to_list(N), iolist_to_binary(V)} || {N, V} <- Vars0],
     Targ = bbmustache:render(Temp, Vars),
     NewName = ConfigFile ++ ".rendered",
     ok = file:write_file(NewName, Targ),
