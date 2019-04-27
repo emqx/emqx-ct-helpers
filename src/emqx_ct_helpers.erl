@@ -89,19 +89,37 @@ start_apps(Apps, Handler) when is_function(Handler) ->
     [start_app(App, Handler) || App <- [emqx | Apps]],
     ok.
 
-%% @private
 start_app(App, Handler) ->
     start_app(App,
               deps_path(App, filename:join(["priv", atom_to_list(App) ++ ".schema"])),
               deps_path(App, filename:join(["etc", atom_to_list(App) ++ ".conf"])),
+              deps_path(App, "vars"),
               Handler).
-%% @private
-start_app(App, SchemaFile, ConfigFile, SpecAppConfig) ->
-    read_schema_configs(App, SchemaFile, ConfigFile),
+
+start_app(App, SchemaFile, ConfigFile, VarsFile, SpecAppConfig) ->
+    RenderedConfigFile = maybe_render_config_file(ConfigFile, VarsFile),
+    read_schema_configs(App, SchemaFile, RenderedConfigFile),
     SpecAppConfig(App),
     application:ensure_all_started(App).
 
-%% @private
+maybe_render_config_file(ConfigFile, VarsFile) ->
+    case filelib:is_regular(VarsFile) of
+        true ->
+            ct:pal("Rendering ~p with: ~p", [ConfigFile, VarsFile]),
+            render_config_file(ConfigFile, VarsFile);
+        false ->
+            ConfigFile
+    end.
+
+render_config_file(ConfigFile, VarsFile) ->
+    {ok, Temp} = file:read_file(ConfigFile),
+    {ok, Vars0} = file:consult(VarsFile),
+    Vars = [{atom_to_list(N), list_to_binary(V)} || {N, V} <- Vars0],
+    Targ = bbmustache:render(Temp, Vars),
+    NewName = ConfigFile ++ ".rendered",
+    ok = file:write_file(NewName, Targ),
+    NewName.
+
 read_schema_configs(App, SchemaFile, ConfigFile) ->
     ct:pal("Read configs - SchemaFile: ~p, ConfigFile: ~p", [SchemaFile, ConfigFile]),
     Schema = cuttlefish_schema:files([SchemaFile]),
