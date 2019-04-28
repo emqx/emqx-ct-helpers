@@ -132,14 +132,25 @@ stop_apps(Apps) ->
     [application:stop(App) || App <- Apps ++ [emqx]].
 
 deps_path(App, RelativePath) ->
-    %% Note: not lib_dir because etc dir is not sym-link-ed to _build dir
-    %% but priv dir is
-    Path0 = code:priv_dir(App),
-    Path = case file:read_link(Path0) of
-               {ok, Resolved} -> Resolved;
-               {error, _} -> Path0
+    Lib = code:lib_dir(App),
+    Priv0 = code:priv_dir(App),
+    Priv = case file:read_link(Priv0) of
+               {ok, Resolved} -> filename:join([Lib, Resolved]);
+               {error, _} -> Priv0
            end,
-    filename:join([Path, "..", RelativePath]).
+    Root0 = filename:split(filename:join([Priv, ".."])),
+    Root1 =
+        case Root0 of
+            ["/" | T] ->
+                case filename:safe_relative_path(filename:join(T)) of
+                    unsafe -> Root0;
+                    Relative -> ["/", Relative]
+                end;
+            _ ->
+                Root0
+        end,
+    Root = filename:join(Root1),
+    filename:join([Root, RelativePath]).
 
 -spec(reload(App :: atom(), SpecAppConfig :: special_config_handler()) -> ok).
 reload(App, SpecAppConfigHandler) ->
