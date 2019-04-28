@@ -37,7 +37,9 @@
         , client_ssl_twoway/0
         , client_ssl/0
         , wait_mqtt_payload/1
-        , not_wait_mqtt_payload/1]).
+        , not_wait_mqtt_payload/1
+        , render_config_file/2
+        ]).
 
 -define(CIPHERS, [{ciphers,
                    ["ECDHE-ECDSA-AES256-GCM-SHA384",
@@ -103,14 +105,14 @@ mustache_vars(App) ->
     ].
 
 start_app(App, SchemaFile, ConfigFile, SpecAppConfig) ->
-    RenderedConfigFile = render_config_file(App, ConfigFile),
+    Vars = mustache_vars(App),
+    RenderedConfigFile = render_config_file(ConfigFile, Vars),
     read_schema_configs(App, SchemaFile, RenderedConfigFile),
     SpecAppConfig(App),
     application:ensure_all_started(App).
 
-render_config_file(App, ConfigFile) ->
+render_config_file(ConfigFile, Vars0) ->
     {ok, Temp} = file:read_file(ConfigFile),
-    Vars0 = mustache_vars(App),
     Vars = [{atom_to_list(N), iolist_to_binary(V)} || {N, V} <- Vars0],
     Targ = bbmustache:render(Temp, Vars),
     NewName = ConfigFile ++ ".rendered",
