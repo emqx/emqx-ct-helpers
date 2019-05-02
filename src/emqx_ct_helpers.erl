@@ -26,6 +26,7 @@
         , start_apps/2
         , stop_apps/1
         , reload/2
+        , app_path/2
         , deps_path/2
         , flush/0
         , flush/1
@@ -93,15 +94,15 @@ start_apps(Apps, Handler) when is_function(Handler) ->
 
 start_app(App, Handler) ->
     start_app(App,
-              deps_path(App, filename:join(["priv", atom_to_list(App) ++ ".schema"])),
-              deps_path(App, filename:join(["etc", atom_to_list(App) ++ ".conf"])),
+              app_path(App, filename:join(["priv", atom_to_list(App) ++ ".schema"])),
+              app_path(App, filename:join(["etc", atom_to_list(App) ++ ".conf"])),
               Handler).
 
 mustache_vars(App) ->
-    [{platform_data_dir, deps_path(App, "data")},
-     {platform_etc_dir,  deps_path(App, "etc")},
-     {platform_log_dir,  deps_path(App, "log")},
-     {platform_plugins_dir,  deps_path(App, "plugins")}
+    [{platform_data_dir, app_path(App, "data")},
+     {platform_etc_dir,  app_path(App, "etc")},
+     {platform_log_dir,  app_path(App, "log")},
+     {platform_plugins_dir,  app_path(App, "plugins")}
     ].
 
 start_app(App, SchemaFile, ConfigFile, SpecAppConfig) ->
@@ -131,26 +132,32 @@ read_schema_configs(App, SchemaFile, ConfigFile) ->
 stop_apps(Apps) ->
     [application:stop(App) || App <- Apps ++ [emqx]].
 
-deps_path(App, RelativePath) ->
+%% backward compatible
+deps_path(App, RelativePath) -> app_path(App, RelativePath).
+
+app_path(App, RelativePath) ->
     Lib = code:lib_dir(App),
     Priv0 = code:priv_dir(App),
     Priv = case file:read_link(Priv0) of
                {ok, Resolved} -> filename:join([Lib, Resolved]);
                {error, _} -> Priv0
            end,
-    Root0 = filename:split(filename:join([Priv, ".."])),
-    Root1 =
-        case Root0 of
-            ["/" | T] ->
-                case filename:safe_relative_path(filename:join(T)) of
-                    unsafe -> Root0;
-                    Relative -> ["/", Relative]
-                end;
-            _ ->
-                Root0
-        end,
-    Root = filename:join(Root1),
-    filename:join([Root, RelativePath]).
+    safe_relative_path(filename:join([Priv, "..", RelativePath])).
+
+safe_relative_path(Path) ->
+    case filename:split(Path) of
+        ["/" | T] ->
+            T1 = do_safe_relative_path(filename:join(T)),
+            filename:join(["/", T1]);
+        _ ->
+            do_safe_relative_path(Path)
+    end.
+
+do_safe_relative_path(Path) ->
+    case filename:safe_relative_path(Path) of
+        unsafe -> Path;
+        OK -> OK
+    end.
 
 -spec(reload(App :: atom(), SpecAppConfig :: special_config_handler()) -> ok).
 reload(App, SpecAppConfigHandler) ->
@@ -173,14 +180,14 @@ change_emqx_opts(SslType) ->
                          case Protocol of
                              ssl ->
                                  SslOpts = proplists:get_value(ssl_options, Opts),
-                                 Keyfile = deps_path(emqx, filename:join(["etc", "certs", "key.pem"])),
-                                 Certfile = deps_path(emqx, filename:join(["etc", "certs", "cert.pem"])),
+                                 Keyfile = app_path(emqx, filename:join(["etc", "certs", "key.pem"])),
+                                 Certfile = app_path(emqx, filename:join(["etc", "certs", "cert.pem"])),
                                  TupleList1 = lists:keyreplace(keyfile, 1, SslOpts, {keyfile, Keyfile}),
                                  TupleList2 = lists:keyreplace(certfile, 1, TupleList1, {certfile, Certfile}),
                                  TupleList3 =
                                      case SslType of
                                          ssl_twoway ->
-                                             CAfile = deps_path(emqx, proplists:get_value(cacertfile, ?MQTT_SSL_TWOWAY)),
+                                             CAfile = app_path(emqx, proplists:get_value(cacertfile, ?MQTT_SSL_TWOWAY)),
                                              MutSslList = lists:keyreplace(cacertfile, 1, ?MQTT_SSL_TWOWAY, {cacertfile, CAfile}),
                                              lists:merge(TupleList2, MutSslList);
                                          _ ->
@@ -209,7 +216,7 @@ flush(Msgs) ->
     end.
 
 client_ssl_twoway() ->
-    [{Key, deps_path(emqx, FilePath)} || {Key, FilePath} <- ?MQTT_SSL_CLIENT] ++ ?CIPHERS.
+    [{Key, app_path(emqx, FilePath)} || {Key, FilePath} <- ?MQTT_SSL_CLIENT] ++ ?CIPHERS.
 
 client_ssl() ->
     ?CIPHERS ++ [{reuse_sessions, true}].
