@@ -370,7 +370,7 @@ url() ->
         end).
 
 ip() ->
-    oneof([ipv4(), ipv6()]).
+    oneof([ipv4(), ipv6(), ipv6_from_v4()]).
 
 ipv4() ->
     ?LET(IP, {range(1, 16#ff), range(0, 16#ff),
@@ -381,6 +381,11 @@ ipv6() ->
               range(0, 16#ff), range(0, 16#ff),
               range(0, 16#ff), range(0, 16#ff),
               range(0, 16#ff), range(0, 16#ff)}, IP).
+
+ipv6_from_v4() ->
+    ?LET(IP, {range(1, 16#ff), range(0, 16#ff),
+              range(0, 16#ff), range(0, 16#ff)},
+         inet:ipv4_mapped_ipv6_address(IP)).
 
 port() ->
     ?LET(Port, range(1, 16#ffff), Port).
