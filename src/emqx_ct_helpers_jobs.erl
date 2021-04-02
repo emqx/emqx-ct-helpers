@@ -82,8 +82,9 @@
 	ConfigUpdated = [ { ?JOBS_MATRIX_CONFIG, JobsConfig } | Config ],
 	case is_job_node() of
 		true ->
-			Hook = on_init_per_suite_failure(Suite, Config),
-			override_function(FuncExists, Suite, ?CT_INIT_PER_SUITE, [ConfigUpdated], Config, Hook);
+			Hook = on_init_per_suite_failure(Suite, ConfigUpdated),
+			override_function(FuncExists, Suite, ?CT_INIT_PER_SUITE, [ConfigUpdated], ConfigUpdated,
+			                  Hook);
 		false -> ConfigUpdated
 	end.
 
@@ -207,9 +208,18 @@ options(Job, SuiteModule) ->
 	list_to_binary(lists:flatten(OptsStr)).
 
 node_name(Name) ->
-	Localhost = net_adm:localhost(),
+	Localhost = gethostname(),
 	Hostname = list_to_binary(Localhost),
 	<<?JOBS_NODE_PREFIX/binary, Name/binary, "@", Hostname/binary>>.
+
+gethostname() ->
+	gethostname(net_kernel:longnames()).
+
+gethostname(true) ->
+	net_adm:localhost();
+gethostname(_) ->
+	{ok, Name}=inet:gethostname(),
+	Name.
 
 jobs_dir() ->
 	{ok, CWD} = file:get_cwd(),
