@@ -111,7 +111,7 @@ read_schema_configs(SchemaFile, ConfigFile) ->
     %% ct:pal("Read configs - SchemaFile: ~p, ConfigFile: ~p", [SchemaFile, ConfigFile]),
     Schema = cuttlefish_schema:files([SchemaFile]),
     Conf = conf_parse:file(ConfigFile),
-    NewConfig = cuttlefish_generator:map(Schema, Conf),
+    {NewConfig, _} = cuttlefish_generator:map(Schema, Conf),
     lists:foreach(
         fun({App, Configs}) ->
             [application:set_env(App, Par, Value) || {Par, Value} <- Configs]
