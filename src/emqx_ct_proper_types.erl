@@ -202,7 +202,7 @@ qos() ->
     range(0, 2).
 
 from() ->
-    oneof([limited_latin_atom(), binary()]).
+    oneof([limited_latin_atom()]).
 
 payload() ->
     binary().
