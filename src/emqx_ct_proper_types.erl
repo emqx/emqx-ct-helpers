@@ -69,7 +69,7 @@ conninfo() ->
             {keepalive, range(0, 16#ffff)},
             {receive_maximum, non_neg_integer()},
             {expiry_interval, non_neg_integer()}],
-    ?LET({Ks, M}, {Keys, map(limited_atom(), term())},
+    ?LET({Ks, M}, {Keys, map(limited_atom(), limited_any_term())},
          begin
              maps:merge(maps:from_list(Ks), M)
          end).
@@ -91,7 +91,7 @@ clientinfo() ->
             % cn,
             % dn,
             ],
-    ?LET({Ks, M}, {Keys, map(limited_atom(), term())},
+    ?LET({Ks, M}, {Keys, map(limited_atom(), limited_any_term())},
          begin
              maps:merge(maps:from_list(Ks), M)
          end).
@@ -151,7 +151,7 @@ message() ->
      qos(),
      from(),
      flags(),
-     map(limited_latin_atom(), any()),   %% headers
+     map(limited_latin_atom(), limited_any_term()),   %% headers
      topic(),
      payload(),
      timestamp()
@@ -437,6 +437,9 @@ limited_atom() ->
              )
           ]).
 
+limited_any_term() ->
+    oneof([binary(), number(), string()]).
+
 %%--------------------------------------------------------------------
 %% Iterators
 %%--------------------------------------------------------------------
@@ -477,4 +480,3 @@ ensure_bin(A) when is_atom(A) ->
     atom_to_binary(A, utf8);
 ensure_bin(B) when is_binary(B) ->
     B.
-
