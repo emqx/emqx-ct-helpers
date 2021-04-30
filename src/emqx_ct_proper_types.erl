@@ -39,6 +39,8 @@
 -export([ url/0
         , ip/0
         , port/0
+        , limited_atom/0
+        , limited_latin_atom/0
         ]).
 
 %% Iterators
@@ -67,7 +69,7 @@ conninfo() ->
             {keepalive, range(0, 16#ffff)},
             {receive_maximum, non_neg_integer()},
             {expiry_interval, non_neg_integer()}],
-    ?LET({Ks, M}, {Keys, map(atom(), term())},
+    ?LET({Ks, M}, {Keys, map(limited_atom(), limited_any_term())},
          begin
              maps:merge(maps:from_list(Ks), M)
          end).
@@ -89,7 +91,7 @@ clientinfo() ->
             % cn,
             % dn,
             ],
-    ?LET({Ks, M}, {Keys, map(atom(), term())},
+    ?LET({Ks, M}, {Keys, map(limited_atom(), limited_any_term())},
          begin
              maps:merge(maps:from_list(Ks), M)
          end).
@@ -143,7 +145,17 @@ mqueue() ->
          end).
 
 message() ->
-    {message, emqx_guid:gen(), qos(), from(), flags(), map(atom(), any()), topic(), payload(), timestamp()}.
+    %% The #message defination can be found emqx/include/emqx.hrl
+    {message,
+     emqx_guid:gen(),
+     qos(),
+     from(),
+     flags(),
+     map(limited_latin_atom(), limited_any_term()),   %% headers
+     topic(),
+     payload(),
+     timestamp()
+    }.
 
 %% @private
 flags() ->
@@ -190,7 +202,7 @@ qos() ->
     range(0, 2).
 
 from() ->
-    oneof([atom(), binary()]).
+    oneof([limited_latin_atom()]).
 
 payload() ->
     binary().
@@ -326,7 +338,7 @@ maybe(T) ->
     oneof([undefined, T]).
 
 socktype() ->
-    oneof([tcp, udp, ssl,  proxy, atom()]).
+    oneof([tcp, udp, ssl, proxy]).
 
 peername() ->
     {ip(), port()}.
@@ -337,7 +349,8 @@ peercert() ->
 
 conn_mod() ->
     oneof([emqx_connection, emqx_ws_connection, emqx_coap_mqtt_adapter,
-           emqx_sn_gateway, emqx_lwm2m_protocol, atom()]).
+           emqx_sn_gateway, emqx_lwm2m_protocol, emqx_gbt32960_conn,
+           emqx_jt808_connection, emqx_tcp_connection]).
 
 proto_name() ->
     oneof([<<"MQTT">>, <<"MQTT-SN">>, <<"CoAP">>, <<"LwM2M">>, utf8()]).
@@ -349,7 +362,7 @@ username() ->
     maybe(utf8()).
 
 properties() ->
-    map(latin_atom(), binary()).
+    map(limited_latin_atom(), binary()).
 
 %% millisecond
 timestamp() ->
@@ -357,10 +370,10 @@ timestamp() ->
     ?LET(Offset, range(-43200, 43200), erlang:system_time(millisecond) + Offset).
 
 zone() ->
-    oneof([external, internal, atom()]).
+    oneof([external, internal, limited_latin_atom()]).
 
 protocol() ->
-    oneof([mqtt, 'mqtt-sn', coap, lwm2m, atom()]).
+    oneof([mqtt, 'mqtt-sn', coap, lwm2m, limited_latin_atom()]).
 
 url() ->
     ?LET({Schema, IP, Port, Path}, {oneof(["http://", "https://"]), ip(), port(), http_path()},
@@ -400,8 +413,32 @@ http_path() ->
 latin_char() ->
     oneof([integer($0, $9), integer($A, $Z), integer($a, $z)]).
 
-latin_atom() ->
-    ?LET(Cs, list(latin_char()), list_to_atom(Cs)).
+limited_latin_atom() ->
+    oneof([ 'abc_atom'
+          , '0123456789'
+          , 'ABC-ATOM'
+          , 'abc123ABC'
+          ]).
+
+%% Avoid generating a lot of atom and causing atom table overflows
+limited_atom() ->
+    oneof([ 'a_normal_atom'
+          , '10123_num_prefixed_atom'
+          , '___dash_prefixed_atom'
+          , '123'
+          , binary_to_atom(<<"你好_utf8_atom"/utf8>>)
+          , '_', ' ', '""', '#$%^&*'
+          %% The longest atom with 255 chars
+          , list_to_atom(
+              lists:append([ "so"
+                           , [ $o || _ <- lists:seq(1, 243)]
+                           , "-long-atom"]
+                          )
+             )
+          ]).
+
+limited_any_term() ->
+    oneof([binary(), number(), string()]).
 
 %%--------------------------------------------------------------------
 %% Iterators
@@ -443,4 +480,3 @@ ensure_bin(A) when is_atom(A) ->
     atom_to_binary(A, utf8);
 ensure_bin(B) when is_binary(B) ->
     B.
-
