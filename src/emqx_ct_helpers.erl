@@ -47,6 +47,7 @@
         , wait_mqtt_payload/1
         , not_wait_mqtt_payload/1
         , render_config_file/2
+        , read_schema_configs/2
         ]).
 
 
@@ -66,7 +67,7 @@ start_apps(Apps) ->
 start_apps(Apps, Handler) when is_function(Handler) ->
     %% Load all application code to beam vm first
     %% Because, minirest, ekka etc.. application will scan these modules
-    lists:foreach(fun load/1, Apps),
+    lists:foreach(fun load/1, [emqx | Apps]),
     lists:foreach(fun(App) -> start_app(App, Handler) end, [emqx | Apps]).
 
 load(App) ->
@@ -109,13 +110,28 @@ render_config_file(ConfigFile, Vars0) ->
 
 read_schema_configs(SchemaFile, ConfigFile) ->
     %% ct:pal("Read configs - SchemaFile: ~p, ConfigFile: ~p", [SchemaFile, ConfigFile]),
-    Schema = cuttlefish_schema:files([SchemaFile]),
-    {ok, Conf} = hocon:load(ConfigFile, #{format => proplists}),
-    NewConfig = cuttlefish_generator:map(Schema, Conf),
+    NewConfig = case is_hocon_schema(SchemaFile) of
+                    {true, HoconSchema} ->
+                        {ok, Conf0} = hocon:load(ConfigFile, #{format => richmap}),
+                        hocon_schema:generate(HoconSchema, Conf0);
+                    false ->
+                        {ok, Conf1} = hocon:load(ConfigFile, #{format => proplists}),
+                        Schema = cuttlefish_schema:files([SchemaFile]),
+                        cuttlefish_generator:map(Schema, Conf1)
+                end,
     lists:foreach(
         fun({App, Configs}) ->
             [application:set_env(App, Par, Value) || {Par, Value} <- Configs]
         end, NewConfig).
+
+is_hocon_schema(CuttlefishSchemaFile) ->
+    HoconSchema = list_to_atom(filename:basename(CuttlefishSchemaFile, ".schema") ++ "_schema"),
+    try
+        _ = HoconSchema:structs(),
+        {true, HoconSchema}
+    catch
+        _:_ -> false
+    end.
 
 -spec(stop_apps(list()) -> ok).
 stop_apps(Apps) ->
