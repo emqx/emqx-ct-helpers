@@ -100,7 +100,10 @@ start_app(App, SchemaFile, ConfigFile, SpecAppConfig) ->
     end.
 
 render_config_file(ConfigFile, Vars0) ->
-    {ok, Temp} = file:read_file(ConfigFile),
+    Temp = case file:read_file(ConfigFile) of
+               {ok, T} -> T;
+               {error, Reason} -> error({failed_to_read_config_template, ConfigFile, Reason})
+           end,
     Vars = [{atom_to_list(N), iolist_to_binary(V)} || {N, V} <- Vars0],
     Targ = bbmustache:render(Temp, Vars),
     NewName = ConfigFile ++ ".rendered",
