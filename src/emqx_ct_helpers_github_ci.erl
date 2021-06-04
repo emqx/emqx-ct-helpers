@@ -59,7 +59,7 @@ job_to_struct(#ct_job{name=Name, vectors=VectorsAtoms, index=Index}) ->
     Vectors = [to_binary(Term)||Term <-VectorsAtoms],
     {[{name,Name},{vectors,Vectors},{index,Index}]}.
 
-to_binary(Atom) -> atom_to_binary(Atom,utf8);
+to_binary(Atom) when is_atom(Atom) -> atom_to_binary(Atom,utf8);
 to_binary(Int) -> integer_to_binary(Int).
 
 %% -------------------------------------------------------------------------------------------------
