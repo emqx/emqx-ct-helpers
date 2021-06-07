@@ -79,9 +79,26 @@ load(App) ->
 
 start_app(App, Handler) ->
     start_app(App,
-              app_path(App, filename:join(["priv", atom_to_list(App) ++ ".schema"])),
+              app_schema(App),
               app_path(App, filename:join(["etc", atom_to_list(App) ++ ".conf"])),
               Handler).
+
+%% TODO: get rid of cuttlefish
+app_schema(App) ->
+    CuttlefishSchema = app_path(App, filename:join(["priv", atom_to_list(App) ++ ".schema"])),
+    case filelib:is_regular(CuttlefishSchema) of
+        true ->
+            CuttlefishSchema;
+        false ->
+            Mod = list_to_atom(atom_to_list(App) ++ "_schema"),
+            try
+                true = is_list(Mod:structs()),
+                Mod
+            catch
+                _ : _ ->
+                    error({bad_schema, App, {file, CuttlefishSchema}, {module, Mod}})
+            end
+    end.
 
 mustache_vars(App) ->
     [{platform_data_dir, app_path(App, "data")},
@@ -90,10 +107,10 @@ mustache_vars(App) ->
      {platform_plugins_dir,  app_path(App, "plugins")}
     ].
 
-start_app(App, SchemaFile, ConfigFile, SpecAppConfig) ->
+start_app(App, Schema, ConfigFile, SpecAppConfig) ->
     Vars = mustache_vars(App),
     RenderedConfigFile = render_config_file(ConfigFile, Vars),
-    read_schema_configs(SchemaFile, RenderedConfigFile),
+    read_schema_configs(Schema, RenderedConfigFile),
     SpecAppConfig(App),
     case application:ensure_all_started(App) of
         {ok, _} -> ok;
@@ -111,30 +128,20 @@ render_config_file(ConfigFile, Vars0) ->
     ok = file:write_file(NewName, Targ),
     NewName.
 
-read_schema_configs(SchemaFile, ConfigFile) ->
-    %% ct:pal("Read configs - SchemaFile: ~p, ConfigFile: ~p", [SchemaFile, ConfigFile]),
-    NewConfig = case is_hocon_schema(SchemaFile) of
-                    {true, HoconSchema} ->
-                        {ok, Conf0} = hocon:load(ConfigFile, #{format => richmap}),
-                        hocon_schema:generate(HoconSchema, Conf0);
-                    false ->
-                        {ok, Conf1} = hocon:load(ConfigFile, #{format => proplists}),
-                        Schema = cuttlefish_schema:files([SchemaFile]),
-                        cuttlefish_generator:map(Schema, Conf1)
-                end,
+read_schema_configs(Schema, ConfigFile) ->
+    NewConfig = generate_config(Schema, ConfigFile),
     lists:foreach(
         fun({App, Configs}) ->
             [application:set_env(App, Par, Value) || {Par, Value} <- Configs]
         end, NewConfig).
 
-is_hocon_schema(CuttlefishSchemaFile) ->
-    HoconSchema = list_to_atom(filename:basename(CuttlefishSchemaFile, ".schema") ++ "_schema"),
-    try
-        _ = HoconSchema:structs(),
-        {true, HoconSchema}
-    catch
-        _:_ -> false
-    end.
+generate_config(SchemaModule, ConfigFile) when is_atom(SchemaModule) ->
+    {ok, Conf0} = hocon:load(ConfigFile, #{format => richmap}),
+    hocon_schema:generate(SchemaModule, Conf0);
+generate_config(SchemaFile, ConfigFile) ->
+    {ok, Conf1} = hocon:load(ConfigFile, #{format => proplists}),
+    Schema = cuttlefish_schema:files([SchemaFile]),
+    cuttlefish_generator:map(Schema, Conf1).
 
 -spec(stop_apps(list()) -> ok).
 stop_apps(Apps) ->
@@ -146,12 +153,7 @@ deps_path(App, RelativePath) -> app_path(App, RelativePath).
 app_path(App, RelativePath) ->
     ok = ensure_app_loaded(App),
     Lib = code:lib_dir(App),
-    Priv0 = code:priv_dir(App),
-    Priv = case file:read_link(Priv0) of
-               {ok, Resolved} -> filename:join([Lib, Resolved]);
-               {error, _} -> Priv0
-           end,
-    safe_relative_path(filename:join([Priv, "..", RelativePath])).
+    safe_relative_path(filename:join([Lib, RelativePath])).
 
 assert_app_loaded(App) ->
     case code:lib_dir(App) of
