@@ -65,14 +65,12 @@ start_apps(Apps) ->
 
 -spec(start_apps(Apps :: apps(), Handler :: special_config_handler()) -> ok).
 start_apps(Apps, Handler) when is_function(Handler) ->
-    ok = load(emqx),
     %% All the apps that are foreign referenced by emqx_schema
     %% should be loaded frist.
-    SchemaApps = [list_to_atom(S) || S <- emqx_schema:includes()],
-
+    SchemaApps = foreign_refereced_schema_apps(),
     %% Load all application code to beam vm first
     %% Because, minirest, ekka etc.. application will scan these modules
-    lists:foreach(fun load/1, SchemaApps ++ Apps),
+    lists:foreach(fun load/1, [emqx | SchemaApps ++ Apps]),
     lists:foreach(fun(App) -> start_app(App, Handler) end, [emqx | Apps]).
 
 load(App) ->
@@ -361,4 +359,10 @@ catch_call(F) ->
     catch
         C : E : S ->
             {crashed, {C, E, S}}
+    end.
+
+foreign_refereced_schema_apps() ->
+    case erlang:function_exported(emqx_schema, includes, 0) of
+        true -> [list_to_atom(S) || S <- emqx_schema:includes()];
+        false -> []
     end.
