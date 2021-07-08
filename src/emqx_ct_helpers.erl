@@ -114,6 +114,7 @@ start_app(App, Schema, ConfigFile, SpecAppConfig) ->
     Vars = mustache_vars(App),
     RenderedConfigFile = render_config_file(ConfigFile, Vars),
     read_schema_configs(Schema, RenderedConfigFile),
+    force_set_config_file_paths(App, [RenderedConfigFile]),
     SpecAppConfig(App),
     case application:ensure_all_started(App) of
         {ok, _} -> ok;
@@ -366,3 +367,8 @@ foreign_refereced_schema_apps() ->
         true -> [list_to_atom(S) || S <- emqx_schema:includes()];
         false -> []
     end.
+
+force_set_config_file_paths(emqx, Paths) ->
+    application:set_env(emqx, config_files, Paths);
+force_set_config_file_paths(_, _) ->
+    ok.
