@@ -92,11 +92,16 @@ app_schema(App) ->
         false ->
             Mod = list_to_atom(atom_to_list(App) ++ "_schema"),
             try
-                true = is_list(Mod:structs()),
+                true = is_list(Mod:roots()),
                 Mod
             catch
-                _ : _ ->
-                    error({bad_schema, App, {file, CuttlefishSchema}, {module, Mod}})
+                C : E ->
+                    error(#{app => App,
+                            file => CuttlefishSchema,
+                            module => Mod,
+                            exeption => C,
+                            reason => E
+                           })
             end
     end.
 
