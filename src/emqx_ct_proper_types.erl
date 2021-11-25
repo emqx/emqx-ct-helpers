@@ -99,6 +99,7 @@ clientinfo() ->
 %% See emqx_session:session() type define
 sessioninfo() ->
     ?LET(Session, {session,
+                    clientid(),
                     subscriptions(),    % subscriptions
                     non_neg_integer(),  % max_subscriptions
                     boolean(),          % upgrade_qos
@@ -109,8 +110,8 @@ sessioninfo() ->
                     awaiting_rel(),     % awaiting_rel
                     non_neg_integer(),  % max_awaiting_rel
                     safty_timeout(),    % await_rel_timeout
-                   timestamp(),         % created_at
-                   latency_stats()
+                    timestamp(),         % created_at
+                    latency_stats()
                   },
          emqx_session:info(Session)).
 
@@ -334,8 +335,7 @@ normal_topic_filter() ->
 
 %% Type defined emqx_message_lantency_stats.erl - stats()
 latency_stats() ->
-    Keys = [{clientid, clientid()},
-            {threshold, number()},
+    Keys = [{threshold, number()},
             {ema, exp_moving_average()},
             {last_update_time, non_neg_integer()},
             {last_access_time, non_neg_integer()},
@@ -404,7 +404,7 @@ protocol() ->
 
 url() ->
     ?LET({Schema, IP, Port, Path}, {oneof(["http://", "https://"]), ip(), port(), http_path()},
-         begin
+        begin
             IP1 = case tuple_size(IP) == 8 of
                 true -> "[" ++ inet:ntoa(IP) ++ "]";
                 false -> inet:ntoa(IP)
