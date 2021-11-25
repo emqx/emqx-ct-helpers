@@ -28,6 +28,9 @@
         , auth_header/2
         ]).
 
+-define(DEF_USERNAME, <<"admin">>).
+-define(DEF_PASSWORD, <<"public">>).
+
 request_api(Method, Url, Auth) ->
     request_api(Method, Url, [], Auth, []).
 
@@ -67,17 +70,15 @@ do_request_api(Method, Request, HttpOpts) ->
 get_http_data(ResponseBody) ->
     maps:get(<<"data">>, emqx_json:decode(ResponseBody, [return_maps])).
 
-auth_header(User, Pass) ->
-    Encoded = base64:encode_to_string(lists:append([User,":",Pass])),
-    {"Authorization","Basic " ++ Encoded}.
+auth_header(Username, Password) ->
+    {ok, Token} = emqx_dashboard_admin:sign_token(Username, Password),
+    {"Authorization", "Bearer " ++ binary_to_list(Token)}.
 
 default_auth_header() ->
-    AppId = <<"myappid">>,
-    AppSecret = emqx_mgmt_auth:get_appsecret(AppId),
-    auth_header(erlang:binary_to_list(AppId), erlang:binary_to_list(AppSecret)).
+    auth_header(?DEF_USERNAME, ?DEF_PASSWORD).
 
 create_default_app() ->
-    emqx_mgmt_auth:add_app(<<"myappid">>, <<"test">>).
+    emqx_dashboard_admin:add_user(?DEF_USERNAME, ?DEF_PASSWORD, <<"admin">>).
 
 delete_default_app() ->
-    emqx_mgmt_auth:del_app(<<"myappid">>).
+    emqx_mgmt_auth:remove_user(?DEF_USERNAME).
