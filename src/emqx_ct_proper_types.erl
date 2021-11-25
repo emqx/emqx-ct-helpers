@@ -109,7 +109,8 @@ sessioninfo() ->
                     awaiting_rel(),     % awaiting_rel
                     non_neg_integer(),  % max_awaiting_rel
                     safty_timeout(),    % await_rel_timeout
-                    timestamp()         % created_at
+                   timestamp(),         % created_at
+                   latency_stats()
                   },
          emqx_session:info(Session)).
 
@@ -330,6 +331,32 @@ normal_topic_filter() ->
              end
          end).
 
+
+%% Type defined emqx_message_lantency_stats.erl - stats()
+latency_stats() ->
+    Keys = [{clientid, clientid()},
+            {threshold, number()},
+            {ema, exp_moving_average()},
+            {last_update_time, non_neg_integer()},
+            {last_access_time, non_neg_integer()},
+            {last_insert_value, non_neg_integer()}
+           ],
+    ?LET({Ks, M}, {Keys, map(limited_atom(), limited_any_term())},
+         begin
+             maps:merge(maps:from_list(Ks), M)
+         end).
+
+%% Type defined emqx_moving_average.erl - ema()
+exp_moving_average() ->
+    Keys = [{type, exponential},
+            {average, number()},
+            {coefficient, float()}
+           ],
+    ?LET({Ks, M}, {Keys, map(limited_atom(), limited_any_term())},
+         begin
+             maps:merge(maps:from_list(Ks), M)
+         end).
+
 %%--------------------------------------------------------------------
 %% Basic Types
 %%--------------------------------------------------------------------
@@ -377,7 +404,7 @@ protocol() ->
 
 url() ->
     ?LET({Schema, IP, Port, Path}, {oneof(["http://", "https://"]), ip(), port(), http_path()},
-        begin
+         begin
             IP1 = case tuple_size(IP) == 8 of
                 true -> "[" ++ inet:ntoa(IP) ++ "]";
                 false -> inet:ntoa(IP)
