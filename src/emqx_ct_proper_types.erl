@@ -335,7 +335,7 @@ normal_topic_filter() ->
 
 %% Type defined emqx_message_lantency_stats.erl - stats()
 latency_stats() ->
-    Keys = [{threshold, number()},
+    Keys = [{threshold, counters:counters_ref()},
             {ema, exp_moving_average()},
             {last_update_time, non_neg_integer()},
             {last_access_time, non_neg_integer()},
