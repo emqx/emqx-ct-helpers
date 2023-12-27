@@ -1,5 +1,5 @@
 {application, emqx_ct_helpers, [
-	{description, "EMQ X Common Test Helpers"},
+	{description, "EMQX Common Test Helpers"},
 	{vsn, "git"},
 	{modules, ['emqx_ct_access_control','emqx_ct_helpers','emqx_ct_proper_helpers','emqx_ct_transform']},
 	{registered, []},
